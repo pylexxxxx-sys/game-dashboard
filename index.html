@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏全球发行策略引擎</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg2: #f7f7f5;
+    --bg3: #f0efeb;
+    --text: #1a1a18;
+    --text2: #6b6a64;
+    --text3: #9c9a92;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --border3: rgba(0,0,0,0.28);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --poe-color: #5F5E5A;
+    --poe-bg: #F1EFE8;
+    --poe-border: #5F5E5A;
+    --vr-color: #534AB7;
+    --vr-bg: #EEEDFE;
+    --vr-border: #534AB7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg2: #242422;
+      --bg3: #2c2c2a;
+      --text: #e8e6de;
+      --text2: #9c9a92;
+      --text3: #6b6a64;
+      --border: rgba(255,255,255,0.10);
+      --border2: rgba(255,255,255,0.18);
+      --border3: rgba(255,255,255,0.28);
+      --poe-color: #B4B2A9;
+      --poe-bg: #2c2c2a;
+      --vr-color: #AFA9EC;
+      --vr-bg: #26215C;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif; background: var(--bg3); color: var(--text); line-height: 1.5; min-height: 100vh; }
+
+  /* Layout */
+  .page { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--bg2); border-right: 0.5px solid var(--border); padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1.5rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .main { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; max-width: 1100px; }
+
+  /* Header */
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .page-header h1 { font-size: 18px; font-weight: 500; color: var(--text); }
+  .page-header p { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .version-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--bg3); color: var(--text2); border: 0.5px solid var(--border); white-space: nowrap; }
+
+  /* Game Switch */
+  .game-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .game-btn { padding: 12px 14px; border-radius: var(--radius-lg); border: 0.5px solid var(--border); background: var(--bg); cursor: pointer; text-align: left; transition: all .15s; display: flex; flex-direction: column; gap: 3px; }
+  .game-btn:hover { border-color: var(--border2); }
+  .game-btn.active-poe { border: 2px solid var(--poe-border); background: var(--poe-bg); }
+  .game-btn.active-vr  { border: 2px solid var(--vr-border);  background: var(--vr-bg); }
+  .gb-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .gb-sub  { font-size: 11px; color: var(--text2); }
+  .gb-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; align-self: flex-start; margin-top: 3px; }
+  .poe-badge { background: var(--poe-bg); color: var(--poe-color); border: 0.5px solid var(--poe-border); }
+  .vr-badge  { background: var(--vr-bg);  color: var(--vr-color);  border: 0.5px solid var(--vr-border); }
+
+  /* Sidebar filters */
+  .sb-section { display: flex; flex-direction: column; gap: 4px; }
+  .sb-title { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; padding: 4px 8px 6px; }
+  .sb-item { font-size: 13px; color: var(--text2); padding: 6px 10px; border-radius: var(--radius-md); cursor: pointer; transition: background .12s; }
+  .sb-item:hover { background: var(--bg3); color: var(--text); }
+  .sb-item.active { background: var(--bg); color: var(--text); font-weight: 500; border: 0.5px solid var(--border2); }
+  .sb-item.active-poe-sel { background: var(--poe-bg); color: var(--poe-color); font-weight: 500; border: 0.5px solid var(--poe-border); }
+  .sb-item.active-vr-sel  { background: var(--vr-bg);  color: var(--vr-color);  font-weight: 500; border: 0.5px solid var(--vr-border); }
+  .sb-footer { margin-top: auto; padding-top: 12px; border-top: 0.5px solid var(--border); font-size: 11px; color: var(--text3); line-height: 1.6; }
+
+  /* DNA Panel */
+  .dna-panel { border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg); }
+  .dna-header { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dna-header h3 { font-size: 13px; font-weight: 500; }
+  .dna-header span { font-size: 11px; color: var(--text2); }
+  .dna-grid { display: grid; grid-template-columns: 110px 1fr; }
+  .dna-label { padding: 9px 16px; color: var(--text2); border-bottom: 0.5px solid var(--border); background: var(--bg2); display: flex; align-items: center; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; line-height: 1.4; }
+  .dna-val   { padding: 9px 16px; color: var(--text);  border-bottom: 0.5px solid var(--border); font-size: 12px; display: flex; align-items: center; line-height: 1.5; }
+  .dna-last .dna-label, .dna-last .dna-val { border-bottom: none; }
+
+  /* Pill filters */
+  .filter-block { display: flex; flex-direction: column; gap: 7px; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .f-label { font-size: 11px; color: var(--text2); min-width: 30px; }
+  .pill { font-size: 11px; padding: 4px 10px; border-radius: 12px; cursor: pointer; border: 0.5px solid var(--border); background: var(--bg); color: var(--text2); transition: all .12s; white-space: nowrap; user-select: none; }
+  .pill:hover { border-color: var(--border2); color: var(--text); }
+  .pill.on-neutral { background: var(--text2); color: var(--bg); border-color: transparent; }
+  .pill.on-poe     { background: var(--poe-color); color: #fff; border-color: var(--poe-color); }
+  .pill.on-vr      { background: var(--vr-color);  color: #fff; border-color: var(--vr-color); }
+
+  /* Divider */
+  .divider { height: 0.5px; background: var(--border); }
+
+  /* Meta */
+  .meta-row { display: flex; align-items: center; justify-content: space-between; }
+  .meta-txt { font-size: 12px; color: var(--text2); }
+  .meta-txt strong { color: var(--text); font-weight: 500; }
+
+  /* Card grid */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+  .scard { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem; cursor: pointer; transition: border-color .12s; display: flex; flex-direction: column; gap: 8px; }
+  .scard:hover { border-color: var(--border2); }
+  .scard.open { border-color: var(--border3); }
+  .sc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .sc-title { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.4; }
+  .chev { font-size: 11px; color: var(--text2); flex-shrink: 0; transition: transform .15s; margin-top: 2px; }
+  .scard.open .chev { transform: rotate(180deg); }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; white-space: nowrap; }
+  .t-poe  { background: #F1EFE8; color: #5F5E5A; }
+  .t-vr   { background: #EEEDFE; color: #534AB7; }
+  .t-phase   { background: #E1F5EE; color: #085041; }
+  .t-region  { background: #E6F1FB; color: #185FA5; }
+  .t-plat    { background: #FAEEDA; color: #633806; }
+  .t-aud     { background: #FAECE7; color: #712B13; }
+  .sc-summary { font-size: 12px; color: var(--text2); line-height: 1.6; padding-top: 8px; border-top: 0.5px solid var(--border); }
+  .sc-body { display: none; flex-direction: column; gap: 10px; }
+  .scard.open .sc-body { display: flex; }
+  .slabel { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .tlist { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .tlist li { font-size: 12px; color: var(--text); padding-left: 12px; position: relative; line-height: 1.5; }
+  .tlist li::before { content: "·"; position: absolute; left: 2px; color: var(--text2); }
+  .vguide { border-left: 2px solid var(--border2); padding-left: 10px; }
+  .vguide p { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .gene-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .gene-box { border-radius: var(--radius-md); padding: 7px 10px; border: 0.5px solid var(--border); background: var(--bg2); }
+  .gene-box .gl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .gene-box .gv { font-size: 11px; color: var(--text); line-height: 1.4; }
+  .empty { grid-column: 1 / -1; padding: 3rem; text-align: center; font-size: 13px; color: var(--text2); }
+
+  @media (max-width: 768px) {
+    .page { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: 1rem; gap: 1rem; }
+    .sb-footer { display: none; }
+    .main { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-section">
+      <div class="sb-title">游戏切换</div>
+      <div class="game-switch" style="grid-template-columns:1fr">
+        <button class="game-btn active-poe" id="btn-poe" onclick="setGame('poe')">
+          <span class="gb-name">Path of Exile 2</span>
+          <span class="gb-sub">Hardcore ARPG · GGG</span>
+          <span class="gb-badge poe-badge">数值 / BD 驱动</span>
+        </button>
+        <button class="game-btn" id="btn-vr" onclick="setGame('vr')">
+          <span class="gb-name">V Rising</span>
+          <span class="gb-sub">Survival Crafting · Stunlock</span>
+          <span class="gb-badge vr-badge">生存 / 建造 驱动</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">产品阶段</div>
+      <div class="sb-item active" data-dim="phase" data-val="all" onclick="sbClick(this)">全部</div>
+      <div class="sb-item" data-dim="phase" data-val="CBT" onclick="sbClick(this)">Closed Beta</div>
+      <div class="sb-item" data-dim="phase" data-val="EA" onclick="sbClick(this)">Early Access</div>
+      <div class="sb-item" data-dim="phase" data-val="Soft" onclick="sbClick(this)">Soft Launch</div>
+      <div class="sb-item" data-dim="phase" data-val="Global" onclick="sbClick(this)">Global Launch</div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">用户圈层</div>
+      <div class="sb-item active" data-dim="audience" data-val="all" onclick="sbClick(this)">全部</div>
+      <div class="sb-item" data-dim="audience" data-val="Core" onclick="sbClick(this)">Core 硬核</div>
+      <div class="sb-item" data-dim="audience" data-val="Mid" onclick="sbClick(this)">Mid-core 次核心</div>
+      <div class="sb-item" data-dim="audience" data-val="Mass" onclick="sbClick(this)">Mass 泛大众</div>
+    </div>
+
+    <div class="sb-footer">
+      游戏发行策略引擎 v1.0<br>
+      PoE 2 · V Rising · 双游戏基因档案<br>
+      全生命周期素材经理专用
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <h1>游戏全球发行策略引擎</h1>
+        <p>阶段 × 区域 × 平台 × 圈层 · 四维素材策略矩阵</p>
+      </div>
+      <span class="version-badge">v1.0 · 2025</span>
+    </div>
+
+    <!-- DNA Panel -->
+    <div class="dna-panel" id="dna-panel"></div>
+
+    <!-- Filters -->
+    <div class="filter-block">
+      <div class="pill-row">
+        <span class="f-label">区域</span>
+        <span class="pill on-neutral" data-dim="region" data-val="all" onclick="fp(this)">全部</span>
+        <span class="pill" data-dim="region" data-val="NA" onclick="fp(this)">北美</span>
+        <span class="pill" data-dim="region" data-val="WEU" onclick="fp(this)">西欧</span>
+        <span class="pill" data-dim="region" data-val="EEU" onclick="fp(this)">东欧</span>
+        <span class="pill" data-dim="region" data-val="SEA" onclick="fp(this)">东南亚</span>
+        <span class="pill" data-dim="region" data-val="CN" onclick="fp(this)">中国大陆</span>
+      </div>
+      <div class="pill-row">
+        <span class="f-label">平台</span>
+        <span class="pill on-neutral" data-dim="platform" data-val="all" onclick="fp(this)">全部</span>
+        <span class="pill" data-dim="platform" data-val="Twitch" onclick="fp(this)">Twitch</span>
+        <span class="pill" data-dim="platform" data-val="YouTube" onclick="fp(this)">YouTube</span>
+        <span class="pill" data-dim="platform" data-val="IGN" onclick="fp(this)">IGN / 媒体</span>
+        <span class="pill" data-dim="platform" data-val="TikTok" onclick="fp(this)">TikTok</span>
+        <span class="pill" data-dim="platform" data-val="Bilibili" onclick="fp(this)">B站</span>
+        <span class="pill" data-dim="platform" data-val="Douyin" onclick="fp(this)">抖音</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="meta-row">
+      <span class="meta-txt" id="meta-txt"></span>
+    </div>
+    <div class="card-grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+const GAMES = {
+  poe: {
+    id: 'poe', name: 'Path of Exile 2',
+    dna: [
+      { dim: '核心情感货币', val: '智识优越感 — 研究出"全服唯一"BD，享受满屏掉落的求知成就' },
+      { dim: '视觉 DNA', val: '极暗美学：脏冷色调、高对比、写实血腥、复杂UI信息密度' },
+      { dim: '素材首要问题', val: '解答「这游戏为什么好玩」—— 需要解释系统深度，而非展示颜值' },
+      { dim: '核心圈层特征', val: '硬核刷子、Excel玩家、暗黑老兵 — 对BD数据有深度辨别力' },
+      { dim: '最高转化时刻', val: '技能树规划过程 + Unique装备掉落瞬间 + BD解法被验证' },
+      { dim: 'KOL类型优先', val: '深度内容创作者 › 速通竞速主播 › 泛娱乐主播' },
+      { dim: '色调指导', val: '去饱和冷灰 · 暗部重 · 局部高光 · 拒绝霓虹与过饱和' },
+    ]
+  },
+  vr: {
+    id: 'vr', name: 'V Rising',
+    dna: [
+      { dim: '核心情感货币', val: '审美拥有欲 + 权力幻想 — 建立自己的哥特城堡，体验阶级跨越' },
+      { dim: '视觉 DNA', val: '哥特华丽：蓝紫色调、优雅暗黑、流光魔法特效、精致建筑结构' },
+      { dim: '素材首要问题', val: '解答「这游戏为什么好看/cool」—— 颜值即转化，不需要大量解释' },
+      { dim: '核心圈层特征', val: '建筑大师、RPG剧情党、社交/联机爱好者 — 对美学品质敏感' },
+      { dim: '最高转化时刻', val: '城堡建造延时摄影 + Boss猎杀仪式感 + 多人联机协作高光' },
+      { dim: 'KOL类型优先', val: '建筑/创意类主播 › 剧情向Vtuber › 社交向娱乐主播' },
+      { dim: '色调指导', val: '蓝紫主调 · 流光魔法粒子 · 高饱和重要时刻 · 哥特建筑美学' },
+    ]
+  }
+};
+
+const DATA = [
+  { game:'poe', phase:'EA', region:'NA', platform:'Twitch', audience:'Core',
+    title:'EA × 北美 × Twitch × Core',
+    hook:'BD深度直播 — 让技能树规划过程成为内容本身',
+    summary:'PoE2核心圈层不需要被说服"游戏好玩"，他们需要的是「在直播中目睹某人想出了更好的BD思路」的智识冲击。',
+    tactics:['邀请Zizaran / Empyrian直播技能树规划全过程，包括走错路和回滚的真实决策','设置「全服首个完成X配置」挑战，直播首发制造「见证历史」感','Twitch Drops绑定观看时长 — 不只掉外观，还掉限定技能点重置药水','开发者账号实时在聊天框解释技能节点设计意图'],
+    visual:'色调：冷灰 + 暗部重 + 局部高光（技能激活瞬间）。前3秒必须是技能树节点密集的全图展示，暗示复杂度。字幕用工业感无衬线字体，绝对不加任何卡通元素。欧美受众对「写实/黑暗」接受度高，不要增加饱和度。',
+    gene:{ '情感钩子':'智识优越感', '核心转化':'+BD规划过程', '色调方向':'冷灰·高对比', 'KOL类型':'深度内容型' }
+  },
+  { game:'poe', phase:'Global', region:'CN', platform:'Douyin', audience:'Mass',
+    title:'Global × 中国大陆 × 抖音 × Mass',
+    hook:'视觉奇观引爆 — 「掉落爽感」先行，系统深度后置',
+    summary:'泛大众在抖音的决策链条极短：好看→点赞→关注→尝试。PoE2在这个场景的核心资产不是技能树，而是满屏金光四射的掉落特效。',
+    tactics:['15-30秒竖版：Unique装备掉落特效放大×3慢动作，配合震撼音效','「这游戏居然可以这样玩」系列 — 展示最反直觉的BD效果（刷新认知）','话题挑战 #PoE2最强技能# ，引导玩家上传自己的特效集锦','公测日0点发「进入Wraeclast」仪式感短视频，卡时间节点冲热搜'],
+    visual:'竖版9:16。前2秒必须有「视觉钩子」（金光/爆炸/大量掉落物满屏）。色调特别处理：将游戏原本的冷灰色调在后期提亮+增加暖金色叠加层，适配国内用户偏好华丽的审美。字幕大号加粗，强对比边框。',
+    gene:{ '情感钩子':'掉落爽感/奇观', '核心转化':'+视觉刺激前置', '色调方向':'暖金·高饱和（后期调色）', 'KOL类型':'混剪达人/泛游戏' }
+  },
+  { game:'poe', phase:'Global', region:'CN', platform:'Bilibili', audience:'Core',
+    title:'Global × 中国大陆 × B站 × Core',
+    hook:'技能树深度内容 — 让国内硬核玩家感到「这社区懂我」',
+    summary:'B站核心圈层对深度攻略内容有极高容忍度（接受20分钟以上视频），且对浅层内容有强烈排斥。策略核心是「足够硬」。',
+    tactics:['签约3-5位ARPG专向UP主，长期合约，赛季持续输出','公测首周发「全职业起手式BD」系列（每职业一条，共6条）','「天梯玩家专访」系列，与国服top100连线分析最优BD','官方提供高清技能图标/装备属性素材包给UP主使用'],
+    visual:'横版16:9，时长10-20分钟。UI截图清晰展示技能树节点，配合红色标注和箭头。BGM使用游戏原声，保持专业感。封面图参考学术/攻略风格，可适当提高信息密度。色调保持游戏原本的暗色调，硬核玩家不接受过度美化。',
+    gene:{ '情感钩子':'智识优越感/社群认同', '核心转化':'+深度攻略内容', '色调方向':'游戏原色·写实', 'KOL类型':'ARPG专向UP主' }
+  },
+  { game:'poe', phase:'CBT', region:'NA', platform:'Twitch', audience:'Core',
+    title:'CBT × 北美 × Twitch × Core',
+    hook:'真实性验证 — 未剪辑的内测直播比任何宣传片都有说服力',
+    summary:'CBT阶段Core圈层最重视「真实游戏状态」，任何过度包装都会引发信任危机。粗糙感本身就是真实感信号。',
+    tactics:['邀请Mathil / Pohx参与CBT，完全开放直播权限（包括Bug和负面体验）','官方频道同步24h内测直播，展示开发者真实测试过程','「首杀Boss」直播制造社区事件，生成自发传播Clip','开发者在聊天框实时回应技能反馈，展示倾听态度'],
+    visual:'刻意保留画质粗糙感，不要过度后期。重点截图展示「技能树复杂度」和「BD构建过程」的信息密度。标注关键技能节点时使用白色箭头+极简说明文字。黑暗美学完全保留，不做任何提亮处理。',
+    gene:{ '情感钩子':'真实性/开发者信任', '核心转化':'+未剪辑真实内容', '色调方向':'原始·拒绝过度包装', 'KOL类型':'老牌PoE主播' }
+  },
+  { game:'poe', phase:'Soft', region:'WEU', platform:'YouTube', audience:'Mid',
+    title:'Soft Launch × 西欧 × YouTube × Mid-core',
+    hook:'赛季内容持续供给 — 欧洲玩家需要「值得继续玩」的理由',
+    summary:'软发布后欧洲次核心玩家对赛季更新是核心留存动力，YouTube赛季前瞻是标准武器，但内容质量要求极高。',
+    tactics:['赛季更新预告片，优先展示欧洲服务器专属权益','欧洲KOL「赛季BD推荐」系列：大众向+小众野路子BD各一条','德/法/西班牙语本地化字幕版本（非机翻，找本地玩家校对）','「顶层天梯玩家」专访系列，彰显竞技深度'],
+    visual:'欧洲用户偏好「电影感」构图和「写实黑暗」美学。避免过于鲜艳的霓虹色。选用去饱和的暗金/钢灰色调色板。封面采用人物+环境大景的「史诗感」构图，避免纯UI截图封面。',
+    gene:{ '情感钩子':'持续成长/赛季期待', '核心转化':'+赛季价值感知', '色调方向':'暗金·去饱和·电影感', 'KOL类型':'欧洲本土ARPG主播' }
+  },
+  { game:'poe', phase:'Global', region:'NA', platform:'IGN', audience:'Mid',
+    title:'Global × 北美 × IGN × Mid-core',
+    hook:'公测媒体总攻 — 权威评分是次核心圈层的购买触发器',
+    summary:'全球公测是最大流量爆发节点，IGN等核心媒体的全力覆盖能直接驱动大规模新用户转化。',
+    tactics:['IGN首发独家专访+封面报道（争取Editor\'s Choice）','PC Gamer / Eurogamer / GamesRadar同步评测解禁','发布「Why PoE 2 Is The ARPG Of The Decade」观点文章','媒体评分公关：提前锁定9分+目标，对齐媒体期望'],
+    visual:'媒体素材包标准：提供4K分辨率的官方截图集（最少50张）、3个官方宣传视频（30s/60s/3min三个版本）。截图必须包含：技能树全图、Boss战画面、世界地图、角色外观。黑暗美学主基调，配合高光特效作为视觉对比。',
+    gene:{ '情感钩子':'权威背书/社会认同', '核心转化':'+媒体评分', '色调方向':'官方精修·黑暗美学', 'KOL类型':'媒体评测人' }
+  },
+  { game:'vr', phase:'EA', region:'NA', platform:'YouTube', audience:'Mid',
+    title:'EA × 北美 × YouTube × Mid-core',
+    hook:'城堡建造延时摄影 — 用「审美时刻」替代系统讲解',
+    summary:'V Rising的Mid-core圈层被「建造自己的城堡」这个幻想驱动，YouTube是他们消费长视频的主战场。素材不需要解释系统，只需要展示「你能拥有什么」。',
+    tactics:['「从废墟到帝国」建造延时摄影：30分钟的城堡建造过程压缩为3分钟','KOL专属挑战：「最美哥特城堡」对决，评论区投票选出获胜者','「V Rising × D&D」跨界叙事：用TTRPG玩家熟悉的语境介绍游戏','合作建筑/设计类YouTuber（非游戏垂类），触达审美敏感人群'],
+    visual:'哥特华丽基调：蓝紫主色调，建筑线条清晰，魔法粒子效果保留最大密度。拍摄视角优先选「建筑全景」（远景俯瞰城堡全貌）。封面图必须展示城堡完整轮廓，配合暮色/月光光效。',
+    gene:{ '情感钩子':'审美拥有欲/权力幻想', '核心转化':'+建造成就展示', '色调方向':'蓝紫·哥特·流光', 'KOL类型':'建筑/创意类主播' }
+  },
+  { game:'vr', phase:'Global', region:'CN', platform:'Bilibili', audience:'Mass',
+    title:'Global × 中国大陆 × B站 × Mass',
+    hook:'哥特美学出圈 — 让不玩生存游戏的用户也想看城堡',
+    summary:'V Rising在B站的破圈优势是「视觉门槛低」——哥特城堡美学不需要游戏知识就能欣赏。泛大众用户被「画面好看」驱动，而非系统深度。',
+    tactics:['合作「建筑欣赏」「中世纪历史」类UP主，跨圈层种草','「吸血鬼公爵的一天」Vlog向内容：角色扮演视角的游戏记录','城堡设计展览视频：展示不同UP主的城堡设计风格对比','与「哥特/暗黑」审美相关的美妆/穿搭UP主联动（打破次元壁）'],
+    visual:'B站横版为主。色调：完全保留蓝紫哥特原色，这正是国内用户对「奇幻美学」的期望色。封面图选最华丽的城堡全景截图，配合「我在游戏里建了这个」的反差感标题。',
+    gene:{ '情感钩子':'哥特审美/反差种草', '核心转化':'+视觉即说服', '色调方向':'蓝紫·高饱和·保留原色', 'KOL类型':'泛文化/美学UP主' }
+  },
+  { game:'vr', phase:'Global', region:'CN', platform:'Douyin', audience:'Mass',
+    title:'Global × 中国大陆 × 抖音 × Mass',
+    hook:'权力幻想15秒 — 「我是吸血鬼公爵」的代入感即是转化',
+    summary:'V Rising在抖音的核心优势是：哥特美学本身就是抖音友好的视觉内容，不需要解释任何游戏机制，画面自己会说话。',
+    tactics:['「人类→吸血鬼公爵」成长弧线30秒剪辑，强化阶级跨越情感','Boss猎杀仪式感：黑暗中出现，魔法粒子满屏，一击制敌。卡BGM节奏','「我的城堡」展示挑战：#VRising城堡大赏# 话题，引导创作UGC','「吸血鬼风格穿搭灵感来自V Rising」—— 跨界话题引发非游戏用户兴趣'],
+    visual:'竖版9:16，前2秒是城堡全景或Boss击杀瞬间。色调：高饱和蓝紫+魔法粒子流光，完全保留甚至加强游戏原本的华丽感。大号字幕，优先使用哥特感衬线字体。',
+    gene:{ '情感钩子':'权力幻想/代入感', '核心转化':'+身份认同触发', '色调方向':'蓝紫·流光·原色直出', 'KOL类型':'混剪达人/生活方式类' }
+  },
+  { game:'vr', phase:'Soft', region:'WEU', platform:'YouTube', audience:'Mid',
+    title:'Soft Launch × 西欧 × YouTube × Mid-core',
+    hook:'欧洲哥特文化圈的「回家感」——用文化共鸣代替游戏讲解',
+    summary:'西欧是哥特文化的源头市场，英法德用户对「中世纪建筑+暗黑美学」有深厚的文化认同。V Rising的视觉语言在这里是一种文化回响，而非陌生的游戏类型。',
+    tactics:['与欧洲历史/建筑YouTube频道合作，探讨「游戏中的哥特建筑真实性」','联合《Elden Ring》《Darkest Dungeon》受众KOL，强调同类审美脉络','德语/法语/西班牙语本地化版本：城堡建造系统的本地化讲解','「欧洲最美城堡设计大赛」：连接游戏内容与现实欧洲文化认同'],
+    visual:'欧洲用户期望「电影感构图」：强调建筑轮廓的线条美，对魔法粒子的密度要求比亚洲市场低。色调偏向去饱和的「暮色蓝灰」，保留哥特感但降低霓虹化程度。封面图选城堡剪影+月亮构图，强调史诗感而非华丽感。',
+    gene:{ '情感钩子':'文化认同/审美共鸣', '核心转化':'+哥特文化回响', '色调方向':'去饱和蓝灰·电影感', 'KOL类型':'历史/文化类频道' }
+  },
+  { game:'vr', phase:'CBT', region:'NA', platform:'Twitch', audience:'Core',
+    title:'CBT × 北美 × Twitch × Core',
+    hook:'生存博弈直播 — 展示多人联机的社交张力',
+    summary:'V Rising的Core圈层被「多人博弈」驱动。CBT阶段最好的内容是「多人服务器上的权力争夺」，而非单人建造展示。',
+    tactics:['组织「吸血鬼公会战」多人PvP服务器直播赛事','「在对手的领地建造城堡」挑战：极限操作 + 随时被偷袭的紧张感','CoreKOL专属：速通「猎杀全部Boss」挑战，竞速排行榜','开发者频道实时展示服务器实时热力图（玩家分布可视化）'],
+    visual:'紧张感优先于美感：战斗场景截图需要保留所有UI元素（生命值/位置/警报），不要「干净截图」。多人场景中标注不同玩家位置。色调保持哥特原色，但动态模糊和运动感比单人建造内容更重要。',
+    gene:{ '情感钩子':'社交博弈/权力竞争', '核心转化':'+多人紧张感', '色调方向':'哥特原色·动态感优先', 'KOL类型':'生存游戏竞技主播' }
+  },
+];
+
+let game = 'poe';
+const F = { phase: 'all', region: 'all', platform: 'all', audience: 'all' };
+
+function setGame(g) {
+  game = g;
+  document.getElementById('btn-poe').className = 'game-btn' + (g === 'poe' ? ' active-poe' : '');
+  document.getElementById('btn-vr').className  = 'game-btn' + (g === 'vr'  ? ' active-vr'  : '');
+  renderDNA();
+  syncPills();
+  render();
+}
+
+function renderDNA() {
+  const g = GAMES[game];
+  const col = game === 'poe' ? '#5F5E5A' : '#534AB7';
+  const rows = g.dna.map((r, i) => `
+    <div class="${i === g.dna.length - 1 ? 'dna-last' : ''}">
+      <div class="dna-label">${r.dim}</div>
+    </div>
+    <div class="${i === g.dna.length - 1 ? 'dna-last' : ''}">
+      <div class="dna-val">${r.val}</div>
+    </div>`).join('');
+  document.getElementById('dna-panel').innerHTML = `
+    <div class="dna-header">
+      <h3 style="color:${col}">${g.name} — 游戏基因档案</h3>
+      <span>${g.dna[0].val.split('—')[0].trim()}</span>
+    </div>
+    <div class="dna-grid">${rows}</div>`;
+}
+
+function sbClick(el) {
+  const dim = el.dataset.dim, val = el.dataset.val;
+  document.querySelectorAll(`.sb-item[data-dim="${dim}"]`).forEach(e => e.className = 'sb-item');
+  el.className = 'sb-item active';
+  F[dim] = val;
+  render();
+}
+
+function fp(el) {
+  const dim = el.dataset.dim, val = el.dataset.val;
+  F[dim] = val;
+  syncPills();
+  render();
+}
+
+function syncPills() {
+  const onClass = game === 'poe' ? 'on-poe' : 'on-vr';
+  document.querySelectorAll('.pill').forEach(p => {
+    p.className = 'pill';
+    if (p.dataset.val === F[p.dataset.dim]) {
+      p.classList.add(p.dataset.val === 'all' ? 'on-neutral' : onClass);
+    }
+  });
+}
+
+function tgl(i) { document.getElementById('c' + i).classList.toggle('open'); }
+
+function render() {
+  const f = DATA.filter(d =>
+    d.game === game &&
+    (F.phase    === 'all' || d.phase    === F.phase) &&
+    (F.region   === 'all' || d.region   === F.region) &&
+    (F.platform === 'all' || d.platform === F.platform) &&
+    (F.audience === 'all' || d.audience === F.audience)
+  );
+  document.getElementById('meta-txt').innerHTML =
+    `<strong>${f.length}</strong> 条策略 · 当前游戏：${GAMES[game].name}`;
+  if (!f.length) {
+    document.getElementById('grid').innerHTML = '<div class="empty">暂无符合条件的策略，请调整筛选器或切换游戏</div>';
+    return;
+  }
+  const gTag = game === 'poe'
+    ? '<span class="tag t-poe">PoE 2</span>'
+    : '<span class="tag t-vr">V Rising</span>';
+  document.getElementById('grid').innerHTML = f.map((d, i) => `
+    <div class="scard" id="c${i}" onclick="tgl(${i})">
+      <div class="sc-head">
+        <span class="sc-title">${d.hook}</span>
+        <span class="chev">▾</span>
+      </div>
+      <div class="tag-row">
+        ${gTag}
+        <span class="tag t-phase">${d.phase}</span>
+        <span class="tag t-region">${d.region}</span>
+        <span class="tag t-plat">${d.platform}</span>
+        <span class="tag t-aud">${d.audience}</span>
+      </div>
+      <div class="sc-summary">${d.summary}</div>
+      <div class="sc-body">
+        <div>
+          <div class="slabel">核心执行动作</div>
+          <ul class="tlist">${d.tactics.map(t => `<li>${t}</li>`).join('')}</ul>
+        </div>
+        <div>
+          <div class="slabel">视觉指导（素材经理专用）</div>
+          <div class="vguide"><p>${d.visual}</p></div>
+        </div>
+        <div class="gene-strip">
+          ${Object.entries(d.gene).map(([k,v]) =>
+            `<div class="gene-box"><div class="gl">${k}</div><div class="gv">${v}</div></div>`
+          ).join('')}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+renderDNA();
+syncPills();
+render();
+</script>
+</body>
+</html>
